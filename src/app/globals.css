@@ -1,9 +1,37 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Open Runde";
+  src: url("/fonts/OpenRunde-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Open Runde";
+  src: url("/fonts/OpenRunde-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Open Runde";
+  src: url("/fonts/OpenRunde-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Open Runde";
+  src: url("/fonts/OpenRunde-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
 @theme inline {
   --color-background: #ffffff;
   --color-foreground: #171717;
-  --font-sans: var(--font-open-runde);
+  --font-sans: "Open Runde", sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 

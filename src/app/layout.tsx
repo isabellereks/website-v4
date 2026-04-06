@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import localFont from "next/font/local";
 import { Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const openRunde = localFont({
-  src: [
-    { path: "../../public/fonts/OpenRunde-Regular.woff2", weight: "400" },
-    { path: "../../public/fonts/OpenRunde-Medium.woff2", weight: "500" },
-    { path: "../../public/fonts/OpenRunde-SemiBold.woff2", weight: "600" },
-    { path: "../../public/fonts/OpenRunde-Bold.woff2", weight: "700" },
-  ],
-  variable: "--font-open-runde",
-});
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -44,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${openRunde.variable} ${geistMono.variable} antialiased`}>
+    <html lang="en" className={`${geistMono.variable} antialiased`}>
       <head>
         {process.env.NODE_ENV === "development" && (
           <Script
