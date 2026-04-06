@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -33,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistMono.variable} antialiased`}>
+    <html lang="en" className={`${inter.variable} ${geistMono.variable} antialiased`}>
       <head>
         {process.env.NODE_ENV === "development" && (
           <Script
