@@ -371,7 +371,7 @@ export default function Home() {
         </div>
       )}
 
-      <main className="max-w-lg mx-auto px-6 py-16 font-[family-name:var(--font-inter)] text-neutral-800">
+      <main className="max-w-lg mx-auto px-6 py-16 font-[family-name:var(--font-open-runde)] text-neutral-800">
         {/* Header */}
         <div className="mb-6 relative">
           <h1 className="text-lg font-medium">
