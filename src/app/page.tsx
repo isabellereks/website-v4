@@ -182,8 +182,11 @@ export default function Home() {
 
   // ── Miffy push-through effect ──
   const mainContentRef = useRef<HTMLDivElement>(null);
-  const wordCacheRef = useRef<{ el: HTMLElement; x: number; y: number; active: boolean }[]>([]);
+  const wordCacheRef = useRef<{ el: HTMLElement; x: number; y: number; active: boolean; skipColor: boolean }[]>([]);
   const cacheReady = useRef(false);
+  const prevMiffyRef = useRef({ x: 0, y: 0 });
+  const spawnAccum = useRef(0);
+  const ripplesRef = useRef<{ x: number; y: number; born: number }[]>([]);
 
   useEffect(() => {
     if (!mainContentRef.current) return;
@@ -224,7 +227,7 @@ export default function Home() {
           const span = document.createElement('span');
           span.className = 'w-word';
           span.style.display = 'inline-block';
-          span.style.transition = 'transform 0.3s ease-out';
+          span.style.transition = 'transform 0.3s ease-out, color 0.4s ease-out';
           if (strike) span.style.textDecoration = 'line-through';
           span.textContent = part;
           frag.appendChild(span);
@@ -263,9 +266,12 @@ export default function Home() {
       const cache: typeof wordCacheRef.current = [];
       els.forEach((el) => {
         const h = el as HTMLElement;
-        h.style.transform = '';
+        h.style.transform = ''; h.style.color = '';
+        const computed = window.getComputedStyle(h).color;
+        const rgb = computed.match(/\d+/g)?.map(Number) || [30, 30, 30];
+        const isDefaultColor = Math.abs(rgb[0] - rgb[1]) < 15 && Math.abs(rgb[1] - rgb[2]) < 15 && rgb[0] < 80;
         const r = h.getBoundingClientRect();
-        cache.push({ el: h, x: r.left + r.width / 2, y: r.top + r.height / 2, active: false });
+        cache.push({ el: h, x: r.left + r.width / 2, y: r.top + r.height / 2, active: false, skipColor: !isDefaultColor });
       });
       wordCacheRef.current = cache;
       cacheReady.current = true;
@@ -277,28 +283,67 @@ export default function Home() {
     window.addEventListener('scroll', scheduleRebuild, { passive: true });
     window.addEventListener('resize', scheduleRebuild);
 
+    const RIPPLE_LIFETIME = 800;
+    const RIPPLE_SPEED = 150;
+    const SPAWN_INTERVAL = 20;
+
     function animate() {
       if (!cacheReady.current) { rafId = requestAnimationFrame(animate); return; }
+      const now = performance.now();
       const pos = miffyPosRef.current;
       const mx = pos.x + MIFFY_HALF;
       const my = pos.y + MIFFY_HALF;
+
+      // Spawn ripples along Miffy's path
+      const pdx = mx - prevMiffyRef.current.x;
+      const pdy = my - prevMiffyRef.current.y;
+      const moveDist = Math.sqrt(pdx * pdx + pdy * pdy);
+      spawnAccum.current += moveDist;
+      if (spawnAccum.current > SPAWN_INTERVAL) {
+        ripplesRef.current.push({ x: mx, y: my, born: now });
+        spawnAccum.current = 0;
+      }
+      prevMiffyRef.current = { x: mx, y: my };
+
+      // Prune old ripples
+      ripplesRef.current = ripplesRef.current.filter((r) => now - r.born < RIPPLE_LIFETIME);
+
+      const ripples = ripplesRef.current;
       const cache = wordCacheRef.current;
 
       for (let i = 0; i < cache.length; i++) {
         const w = cache[i];
-        const dx = w.x - mx;
-        const dy = w.y - my;
-        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < PUSH_RADIUS) {
-          const force = (1 - dist / PUSH_RADIUS) * PUSH_STRENGTH;
-          const angle = Math.atan2(dy, dx);
-          const tx = Math.cos(angle) * force;
-          const ty = Math.sin(angle) * force * 0.5;
-          w.el.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px)`;
+        let totalTx = 0, totalTy = 0, maxBlend = 0;
+
+        // Expanding ripple rings only — they fade naturally
+        for (let j = 0; j < ripples.length; j++) {
+          const rip = ripples[j];
+          const rdx = w.x - rip.x, rdy = w.y - rip.y;
+          const rDist = Math.sqrt(rdx * rdx + rdy * rdy);
+          if (rDist > PUSH_RADIUS * 2) continue;
+          const age = (now - rip.born) / 1000;
+          const ringRadius = age * RIPPLE_SPEED;
+          const ringDist = Math.abs(rDist - ringRadius);
+          if (ringDist > 30) continue;
+          const decay = Math.max(0, 1 - (now - rip.born) / RIPPLE_LIFETIME);
+          const wave = Math.cos(ringDist / 30 * Math.PI * 0.5) * decay;
+          const angle = rDist > 0 ? Math.atan2(rdy, rdx) : 0;
+          totalTx += Math.cos(angle) * wave * 4;
+          totalTy += Math.sin(angle) * wave * 2;
+          maxBlend = Math.max(maxBlend, wave * 0.5);
+        }
+
+        if (Math.abs(totalTx) > 0.1 || Math.abs(totalTy) > 0.1) {
+          w.el.style.transform = `translate(${totalTx.toFixed(1)}px,${totalTy.toFixed(1)}px)`;
+          if (!w.skipColor && maxBlend > 0.05) {
+            const grey = Math.round(30 + (160 - 30) * Math.min(maxBlend, 1));
+            w.el.style.color = `rgb(${grey},${grey},${grey})`;
+          }
           w.active = true;
         } else if (w.active) {
           w.el.style.transform = '';
+          w.el.style.color = '';
           w.active = false;
         }
       }
@@ -306,7 +351,7 @@ export default function Home() {
     }
 
     rafId = requestAnimationFrame(animate);
-    return () => { cancelAnimationFrame(rafId); clearTimeout(timer); window.removeEventListener('scroll', scheduleRebuild); window.removeEventListener('resize', scheduleRebuild); wordCacheRef.current.forEach((w) => { w.el.style.transform = ''; }); };
+    return () => { cancelAnimationFrame(rafId); clearTimeout(timer); window.removeEventListener('scroll', scheduleRebuild); window.removeEventListener('resize', scheduleRebuild); ripplesRef.current = []; wordCacheRef.current.forEach((w) => { w.el.style.transform = ''; w.el.style.color = ''; }); };
   }, [miffyActivated]);
 
   let lastWorkYear = "";
