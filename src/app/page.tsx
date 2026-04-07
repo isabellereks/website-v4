@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, Mail01Icon, Linkedin01Icon, Bookmark01Icon, Github01Icon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon, Mail01Icon, Linkedin01Icon, Bookmark01Icon, Github01Icon, TwitterIcon, YelpIcon } from "@hugeicons/core-free-icons";
 import { prepareWithSegments, layoutNextLine } from "@chenglou/pretext";
 import { workEntries } from "@/data/work";
 import { writingEntries } from "@/data/writing";
@@ -334,27 +334,30 @@ export default function Home() {
         </div>
       )}
 
-      <main className="max-w-xl mx-auto px-6 py-24 font-[family-name:var(--font-open-runde)] text-neutral-800">
+      <main className="max-w-xl mx-auto px-6 py-12 md:py-24 font-[family-name:var(--font-open-runde)] text-neutral-800">
         {/* Header */}
-        <div className="mb-10 relative">
-          <h1 className="text-2xl font-semibold">
+        <div className="mb-6 relative">
+          <h1 className="text-2xl md:text-3xl font-semibold">
             <span className="shimmer">Isabelle Reksopuro</span>
           </h1>
-          <div className="flex gap-3 mt-2 text-neutral-400">
-            <a href="mailto:reksopuro.isabelle@gmail.com" className="hover:text-neutral-600 transition-colors" title="Email">
-              <HugeiconsIcon icon={Mail01Icon} size={16} />
+          <div className="flex gap-2 mt-1 text-neutral-400">
+            <a href="mailto:reksopuro.isabelle@gmail.com" className="hover:text-neutral-600 transition-colors p-1" title="Email">
+              <HugeiconsIcon icon={Mail01Icon} size={20} />
             </a>
-            <a href="https://twitter.com/isareksopuro" className="hover:text-neutral-600 transition-colors" title="X">
-              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            <a href="https://twitter.com/isareksopuro" className="hover:text-neutral-600 transition-colors p-1" title="Twitter">
+              <HugeiconsIcon icon={TwitterIcon} size={20} />
             </a>
-            <a href="https://isaishangry.substack.com/" className="hover:text-neutral-600 transition-colors" title="Substack">
-              <HugeiconsIcon icon={Bookmark01Icon} size={16} />
+            <a href="https://isaishangry.substack.com/" className="hover:text-neutral-600 transition-colors p-1" title="Substack">
+              <HugeiconsIcon icon={Bookmark01Icon} size={20} />
             </a>
-            <a href="https://www.linkedin.com/in/isabellereks/" className="hover:text-neutral-600 transition-colors" title="LinkedIn">
-              <HugeiconsIcon icon={Linkedin01Icon} size={16} />
+            <a href="https://www.linkedin.com/in/isabellereks/" className="hover:text-neutral-600 transition-colors p-1" title="LinkedIn">
+              <HugeiconsIcon icon={Linkedin01Icon} size={20} />
             </a>
-            <a href="https://github.com/isabellereks" className="hover:text-neutral-600 transition-colors" title="GitHub">
-              <HugeiconsIcon icon={Github01Icon} size={16} />
+            <a href="https://github.com/isabellereks" className="hover:text-neutral-600 transition-colors p-1" title="GitHub">
+              <HugeiconsIcon icon={Github01Icon} size={20} />
+            </a>
+            <a href="https://www.yelp.com/user_details?userid=qBYWRSBD84kFRkHu_qFTTg" className="hover:text-neutral-600 transition-colors p-1" title="Yelp">
+              <HugeiconsIcon icon={YelpIcon} size={20} />
             </a>
           </div>
           {!miffyActivated && (
@@ -368,7 +371,7 @@ export default function Home() {
           )}
         </div>
 
-        <div ref={mainContentRef} className="text-sm leading-relaxed">
+        <div ref={mainContentRef} className="text-xs md:text-sm leading-relaxed">
           {/* About */}
           <div id="about" className="space-y-4">
             <p>
@@ -389,7 +392,7 @@ export default function Home() {
           </div>
 
           {/* Currently */}
-          <div id="currently" className="mt-8">
+          <div id="currently" className="mt-6">
             <p className="text-sm font-medium text-neutral-400 mb-3">Currently</p>
             <div className="space-y-4">
               <p>
@@ -411,24 +414,32 @@ export default function Home() {
           </div>
 
           {/* Tab bar */}
-          <div className="mt-8">
-            <div className="relative flex gap-1 p-1 bg-neutral-100 rounded-full w-fit">
+          <div className="mt-6">
+            <div className="relative flex gap-1 p-1 bg-neutral-100/80 backdrop-blur-sm rounded-full w-fit">
               {(["Work", "Writing", "Projects", "Misc"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-1.5 rounded-full text-xs transition-all duration-200 cursor-pointer ${
+                  className={`relative z-10 px-4 py-1.5 rounded-full text-xs cursor-pointer transition-colors duration-150 ${
                     activeTab === tab
-                      ? "bg-white text-neutral-800 font-medium shadow-sm"
+                      ? "text-neutral-800 font-medium"
                       : "text-neutral-500 hover:text-neutral-700"
                   }`}
                 >
+                  {activeTab === tab && (
+                    <motion.div
+                      layoutId="active-tab"
+                      className="absolute inset-0 bg-white rounded-full shadow-sm"
+                      style={{ zIndex: -1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 35, mass: 0.5 }}
+                    />
+                  )}
                   {tab}
                 </button>
               ))}
             </div>
 
-            <div className="mt-3">
+            <div className="mt-3 text-xs">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
@@ -505,7 +516,7 @@ export default function Home() {
                   )}
 
                   {activeTab === "Misc" && (
-                    <p>I like binging K-dramas (ask me what I&apos;m watching!), downing gallons of matcha, baking blueberry scones, and reading at 1,200+ WPM (unofficially benchmarked).</p>
+                    <p className="text-sm">I like binging K-dramas (ask me what I&apos;m watching!), downing gallons of matcha, baking blueberry scones, and reading at 1,200+ WPM (unofficially benchmarked).</p>
                   )}
                 </motion.div>
               </AnimatePresence>
@@ -513,7 +524,7 @@ export default function Home() {
           </div>
 
           {/* Footer */}
-          <p className="mt-16 text-neutral-300 text-xs">Made with stardust ★ by Isabelle</p>
+          <p className="mt-16 text-center text-neutral-400 text-[10px] font-[family-name:var(--font-geist-mono)]">made with stardust ★ by isabelle</p>
         </div>
       </main>
     </>
