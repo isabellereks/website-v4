@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon, Mail01Icon, Linkedin01Icon, Bookmark01Icon, Github01Icon } from "@hugeicons/core-free-icons";
 import { prepareWithSegments, layoutNextLine } from "@chenglou/pretext";
 import { workEntries } from "@/data/work";
 import { writingEntries } from "@/data/writing";
@@ -34,6 +34,7 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [isBouncing, setIsBouncing] = useState<'left' | 'right' | 'top' | 'bottom' | null>(null);
   const [openWork, setOpenWork] = useState<Record<number, boolean>>({});
+  const [activeTab, setActiveTab] = useState<"Work" | "Writing" | "Projects" | "Misc">("Work");
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const initialMiffyRef = useRef<HTMLDivElement>(null);
   const miffyPosRef = useRef(miffyPos);
@@ -78,8 +79,15 @@ export default function Home() {
       setIsMoving(true);
       const step = shiftHeld ? RUN_STEP : STEP;
       setMiffyActivated(true);
+
       setMiffyPos((prev) => {
         let { x, y } = prev;
+        // If position is 0,0 (never set), grab from the static miffy element
+        if (x === 0 && y === 0 && initialMiffyRef.current) {
+          const rect = initialMiffyRef.current.getBoundingClientRect();
+          x = rect.left;
+          y = rect.top;
+        }
         if (keysHeld.has('ArrowUp') || keysHeld.has('w')) y -= step;
         if (keysHeld.has('ArrowDown') || keysHeld.has('s')) y += step;
         if (keysHeld.has('ArrowLeft') || keysHeld.has('a')) x -= step;
@@ -88,6 +96,9 @@ export default function Home() {
         const maxY = window.innerHeight - MIFFY_SIZE;
         if (x <= 0) triggerBounce('left');
         if (x >= maxX) triggerBounce('right');
+        const SCROLL_ZONE = 60;
+        if (y < SCROLL_ZONE) window.scrollBy(0, -(SCROLL_ZONE - y) * 0.3);
+        if (y > maxY - SCROLL_ZONE) window.scrollBy(0, (y - (maxY - SCROLL_ZONE)) * 0.3);
         if (y <= 0) triggerBounce('top');
         if (y >= maxY) triggerBounce('bottom');
         return { x: Math.max(0, Math.min(maxX, x)), y: Math.max(0, Math.min(maxY, y)) };
@@ -169,13 +180,10 @@ export default function Home() {
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); window.removeEventListener('touchmove', handleTouchMove); window.removeEventListener('touchend', handleTouchEnd); };
   }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
 
-  // ── Word ripple ──
-  const wordCacheRef = useRef<{ el: HTMLElement; x: number; y: number; isStardust: boolean; active: boolean; origColor: string; origRGB: number[]; lastHitTime: number; skipColor: boolean; isStrike: boolean }[]>([]);
-  const cacheReady = useRef(false);
-  const ripplesRef = useRef<{ x: number; y: number; born: number; amp: number }[]>([]);
-  const prevMiffyRef = useRef({ x: 0, y: 0 });
-  const spawnAccum = useRef(0);
+  // ── Miffy push-through effect ──
   const mainContentRef = useRef<HTMLDivElement>(null);
+  const wordCacheRef = useRef<{ el: HTMLElement; x: number; y: number; active: boolean }[]>([]);
+  const cacheReady = useRef(false);
 
   useEffect(() => {
     if (!mainContentRef.current) return;
@@ -199,6 +207,14 @@ export default function Home() {
         const text = node.textContent || '';
         if (!text.trim()) continue;
         if (node.parentElement?.classList.contains('w-word')) continue;
+        // Skip text inside links and buttons to preserve underlines and layout animations
+        let skipNode = false;
+        let check: HTMLElement | null = node.parentElement;
+        while (check && check !== container) {
+          if (check.tagName === 'A' || check.tagName === 'BUTTON') { skipNode = true; break; }
+          check = check.parentElement;
+        }
+        if (skipNode) continue;
         const strike = isInsideStrike(node);
         const frag = document.createDocumentFragment();
         const parts = text.split(/( +)/);
@@ -208,6 +224,7 @@ export default function Home() {
           const span = document.createElement('span');
           span.className = 'w-word';
           span.style.display = 'inline-block';
+          span.style.transition = 'transform 0.3s ease-out';
           if (strike) span.style.textDecoration = 'line-through';
           span.textContent = part;
           frag.appendChild(span);
@@ -231,20 +248,13 @@ export default function Home() {
     if (!miffyActivated || !mainContentRef.current) return;
     const container = mainContentRef.current;
     let rafId: number;
-
-    const MIFFY_HALF = 35;
-    const RIPPLE_LIFETIME = 1600;
-    const RIPPLE_SPEED = 200;
-    const WAVELENGTH = 40;
-    const MAX_AMP = 12;
-    const INFLUENCE = 400;
-    const SPAWN_INTERVAL = 18;
-    const BASE_RGB = [30, 30, 30];
-    const RIPPLE_RGB = [180, 180, 180];
+    const MIFFY_HALF = 25;
+    const PUSH_RADIUS = 80;
+    const PUSH_STRENGTH = 15;
 
     try {
       const text = container.textContent || '';
-      const p = prepareWithSegments(text, '14px serif');
+      const p = prepareWithSegments(text, '14px sans-serif');
       layoutNextLine(p, { segmentIndex: 0, graphemeIndex: 0 }, container.getBoundingClientRect().width);
     } catch { /* non-critical */ }
 
@@ -253,19 +263,9 @@ export default function Home() {
       const cache: typeof wordCacheRef.current = [];
       els.forEach((el) => {
         const h = el as HTMLElement;
-        h.style.transform = ''; h.style.color = ''; h.style.textShadow = '';
-        const computed = window.getComputedStyle(h).color;
+        h.style.transform = '';
         const r = h.getBoundingClientRect();
-        const parentText = h.parentElement?.textContent || '';
-        const rgb = computed.match(/\d+/g)?.map(Number) || [30, 30, 30];
-        const isDefaultColor = Math.abs(rgb[0] - rgb[1]) < 15 && Math.abs(rgb[1] - rgb[2]) < 15 && rgb[0] < 80;
-        let isStrike = false;
-        let check = h.parentElement;
-        while (check && check !== container) {
-          if (check.tagName === 'S' || check.tagName === 'DEL') { isStrike = true; break; }
-          check = check.parentElement;
-        }
-        cache.push({ el: h, x: r.left + r.width / 2, y: r.top + r.height / 2, isStardust: parentText.includes('stardust'), active: false, origColor: computed, origRGB: rgb, lastHitTime: 0, skipColor: !isDefaultColor && !isStrike, isStrike });
+        cache.push({ el: h, x: r.left + r.width / 2, y: r.top + r.height / 2, active: false });
       });
       wordCacheRef.current = cache;
       cacheReady.current = true;
@@ -279,63 +279,26 @@ export default function Home() {
 
     function animate() {
       if (!cacheReady.current) { rafId = requestAnimationFrame(animate); return; }
-      const now = performance.now();
       const pos = miffyPosRef.current;
       const mx = pos.x + MIFFY_HALF;
       const my = pos.y + MIFFY_HALF;
-      const pdx = mx - prevMiffyRef.current.x;
-      const pdy = my - prevMiffyRef.current.y;
-      const moveDist = Math.sqrt(pdx * pdx + pdy * pdy);
-      spawnAccum.current += moveDist;
-      if (spawnAccum.current > SPAWN_INTERVAL) {
-        ripplesRef.current.push({ x: mx, y: my, born: now, amp: MAX_AMP });
-        spawnAccum.current = 0;
-      }
-      prevMiffyRef.current = { x: mx, y: my };
-      ripplesRef.current = ripplesRef.current.filter((r) => now - r.born < RIPPLE_LIFETIME);
-      const ripples = ripplesRef.current;
       const cache = wordCacheRef.current;
 
       for (let i = 0; i < cache.length; i++) {
         const w = cache[i];
-        let totalTx = 0, totalTy = 0, maxBlend = 0, hit = false;
-        for (let j = 0; j < ripples.length; j++) {
-          const rip = ripples[j];
-          const rdx = w.x - rip.x, rdy = w.y - rip.y;
-          const dist = Math.sqrt(rdx * rdx + rdy * rdy);
-          if (dist > INFLUENCE) continue;
-          const age = (now - rip.born) / 1000;
-          const radius = age * RIPPLE_SPEED;
-          const decay = Math.max(0, 1 - (now - rip.born) / RIPPLE_LIFETIME);
-          const ringDist = dist - radius;
-          const normDist = Math.min(dist / INFLUENCE, 1);
-          const falloff = Math.pow(1 - normDist, 1.2);
-          const wave = Math.sin(ringDist / WAVELENGTH * Math.PI * 2);
-          const strength = wave * rip.amp * decay * falloff;
-          const angle = dist > 0 ? Math.atan2(rdy, rdx) : 0;
-          totalTx += Math.cos(angle) * strength;
-          totalTy += Math.sin(angle) * strength * 0.4;
-          const blend = decay * falloff;
-          if (blend > maxBlend) maxBlend = blend;
-          hit = true;
-        }
-        if (hit) {
-          w.lastHitTime = now;
-          w.el.style.transform = `translate(${totalTx.toFixed(1)}px,${totalTy.toFixed(1)}px)`;
-          if (!w.skipColor) {
-            const blend = Math.min(maxBlend * 0.8, 0.85);
-            if (w.isStrike) {
-              const flash = Math.round(w.origRGB[0] + (220 - w.origRGB[0]) * blend * 0.4);
-              w.el.style.color = `rgb(${flash},${flash},${flash})`;
-            } else {
-              const grey = Math.round(BASE_RGB[0] + (RIPPLE_RGB[0] - BASE_RGB[0]) * blend);
-              w.el.style.color = `rgb(${grey},${grey},${grey})`;
-            }
-          }
-          w.el.style.textShadow = '';
+        const dx = w.x - mx;
+        const dy = w.y - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < PUSH_RADIUS) {
+          const force = (1 - dist / PUSH_RADIUS) * PUSH_STRENGTH;
+          const angle = Math.atan2(dy, dx);
+          const tx = Math.cos(angle) * force;
+          const ty = Math.sin(angle) * force * 0.5;
+          w.el.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px)`;
           w.active = true;
         } else if (w.active) {
-          w.el.style.transform = ''; w.el.style.color = ''; w.el.style.textShadow = '';
+          w.el.style.transform = '';
           w.active = false;
         }
       }
@@ -343,7 +306,7 @@ export default function Home() {
     }
 
     rafId = requestAnimationFrame(animate);
-    return () => { cancelAnimationFrame(rafId); clearTimeout(timer); window.removeEventListener('scroll', scheduleRebuild); window.removeEventListener('resize', scheduleRebuild); ripplesRef.current = []; wordCacheRef.current.forEach((w) => { w.el.style.transform = ''; w.el.style.color = ''; w.el.style.textShadow = ''; }); };
+    return () => { cancelAnimationFrame(rafId); clearTimeout(timer); window.removeEventListener('scroll', scheduleRebuild); window.removeEventListener('resize', scheduleRebuild); wordCacheRef.current.forEach((w) => { w.el.style.transform = ''; }); };
   }, [miffyActivated]);
 
   let lastWorkYear = "";
@@ -364,24 +327,35 @@ export default function Home() {
           )}
           <img
             src={miffyTongue ? "/miffy-tongue.png" : (isDragging || isMoving) ? (runFrame === 0 ? "/miffy-left.png" : "/miffy-right.png") : "/miffy2.png"}
-            alt="miffy" width={50} height={50}
+            alt="miffy" width={70} height={70}
             className={`drop-shadow-lg pointer-events-none shrink-0 ${isBouncing ? `miffy-wall-bounce-${isBouncing}` : 'miffy-wobble'}`}
             draggable={false}
           />
         </div>
       )}
 
-      <main className="max-w-lg mx-auto px-6 py-16 font-[family-name:var(--font-inter)] text-neutral-800">
+      <main className="max-w-xl mx-auto px-6 py-24 font-[family-name:var(--font-open-runde)] text-neutral-800">
         {/* Header */}
-        <div className="mb-6 relative">
-          <h1 className="text-lg font-medium">
+        <div className="mb-10 relative">
+          <h1 className="text-2xl font-semibold">
             <span className="shimmer">Isabelle Reksopuro</span>
           </h1>
-          <div className="flex gap-4 mt-1 text-xs text-neutral-400">
-            <a href="mailto:reksopuro.isabelle@gmail.com" className="hover:text-neutral-600 transition-colors">Email</a>
-            <a href="https://twitter.com/isareksopuro" className="hover:text-neutral-600 transition-colors">X</a>
-            <a href="https://isabellereksopuro.substack.com/" className="hover:text-neutral-600 transition-colors">Substack</a>
-            <a href="https://www.linkedin.com/in/isabellereks/" className="hover:text-neutral-600 transition-colors">LinkedIn</a>
+          <div className="flex gap-3 mt-2 text-neutral-400">
+            <a href="mailto:reksopuro.isabelle@gmail.com" className="hover:text-neutral-600 transition-colors" title="Email">
+              <HugeiconsIcon icon={Mail01Icon} size={16} />
+            </a>
+            <a href="https://twitter.com/isareksopuro" className="hover:text-neutral-600 transition-colors" title="X">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            </a>
+            <a href="https://isaishangry.substack.com/" className="hover:text-neutral-600 transition-colors" title="Substack">
+              <HugeiconsIcon icon={Bookmark01Icon} size={16} />
+            </a>
+            <a href="https://www.linkedin.com/in/isabellereks/" className="hover:text-neutral-600 transition-colors" title="LinkedIn">
+              <HugeiconsIcon icon={Linkedin01Icon} size={16} />
+            </a>
+            <a href="https://github.com/isabellereks" className="hover:text-neutral-600 transition-colors" title="GitHub">
+              <HugeiconsIcon icon={Github01Icon} size={16} />
+            </a>
           </div>
           {!miffyActivated && (
             <div ref={initialMiffyRef} className="absolute right-0 top-0 cursor-grab active:cursor-grabbing select-none touch-none group"
@@ -389,12 +363,12 @@ export default function Home() {
               <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-[#AD606E] text-white text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
                 Isa&apos;s Miffy
               </span>
-              <img src="/miffy2.png" alt="miffy" width={50} height={50} className="miffy-bounce drop-shadow-lg pointer-events-none" draggable={false} />
+              <img src="/miffy2.png" alt="miffy" width={70} height={70} className="miffy-bounce drop-shadow-lg pointer-events-none" draggable={false} />
             </div>
           )}
         </div>
 
-        <div ref={mainContentRef} className="space-y-4 text-sm leading-relaxed">
+        <div ref={mainContentRef} className="text-sm leading-relaxed">
           {/* About */}
           <div id="about" className="space-y-4">
             <p>
@@ -404,8 +378,8 @@ export default function Home() {
             </p>
             <p>
               I think it&apos;s terrible our <span className="highlighter-hover">politicians don&apos;t know how wifi works</span>,
-              and the ones that do are misusing taxpayer funds to develop weapons with artificial intelligence.
-              I&apos;ve made it my personal mission to work on projects dealing with tech and improving how it intersects in our lives.
+              and they&apos;re actively pushing against data centers instead of preparing society for AGI.
+              I hope to work on projects dealing with AI safety and public policy, helping innovation thrive while protecting everyday people.
             </p>
             <p>
               On the side, I plan on traveling the world and eating through all the cuisines it has to offer.
@@ -415,106 +389,131 @@ export default function Home() {
           </div>
 
           {/* Currently */}
-          <div id="currently" className="space-y-4">
-            <p className="pt-4 text-sm font-medium text-neutral-400">Currently</p>
-            <p>
-              Right now, I&apos;m{" "}
-              <s className="text-neutral-400 hover:text-[#AD606E] hover:animate-pulse transition-colors cursor-default">in class</s>{" "}
-              building side projects on Twitter and running the{" "}
-              <Link href="https://www.instagram.com/seattlejunkjournalclub/">Seattle Junk Journal Club</Link>.
-              I&apos;m also getting back into writing on <Link href="https://isabellereksopuro.substack.com/">Substack</Link>.
-            </p>
-            <p>
-              I&apos;m campaigning for reproductive justice and forming a sexual assault task force with{" "}
-              <Link href="https://www.advocatesforyouth.org/">Advocates for Youth</Link> in Washington, D.C. and Seattle, WA.
-            </p>
-            <p>
-              In my spare time, I lead the student ambassador program at the{" "}
-              <Link href="https://aaylc.org">Asian American Youth Leadership Conference</Link> for 600+ students.
-            </p>
-          </div>
-
-          {/* Work */}
-          <div id="work" className="mt-2">
-            <p className="pt-4 text-sm font-medium text-neutral-400 mb-1">Work</p>
-            <div>
-              {workEntries.map((entry, i) => {
-                const showYear = entry.year !== lastWorkYear;
-                lastWorkYear = entry.year;
-                return (
-                  <button key={i}
-                    onClick={() => setOpenWork((prev) => ({ ...prev, [i]: !prev[i] }))}
-                    className={`w-full text-left cursor-pointer py-3 grid grid-cols-[60px_1fr_auto] gap-3 items-start ${showYear && i !== 0 ? "border-t border-neutral-100" : ""}`}>
-                    <span className="text-sm text-neutral-300">{showYear ? entry.year : ""}</span>
-                    <div>
-                      <div className="flex items-center gap-1">
-                        <a href={entry.orgUrl} onClick={(e) => e.stopPropagation()} style={linkStyle} className="text-sm hover:text-neutral-500 transition-colors">{entry.org}</a>
-                        <motion.span className="text-neutral-400 shrink-0 inline-flex" animate={{ rotate: openWork[i] ? 90 : 0 }} transition={{ duration: 0.15 }}>
-                          <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
-                        </motion.span>
-                      </div>
-                      <p className="text-xs text-neutral-400 mt-0.5">{entry.title}</p>
-                      <AnimatePresence>
-                        {openWork[i] && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }} className="overflow-hidden">
-                            <p className="text-sm text-neutral-500 mt-2 leading-relaxed">{entry.description}</p>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                    <span />
-                  </button>
-                );
-              })}
+          <div id="currently" className="mt-8">
+            <p className="text-sm font-medium text-neutral-400 mb-3">Currently</p>
+            <div className="space-y-4">
+              <p>
+                Right now, I&apos;m{" "}
+                <s className="text-neutral-400 hover:text-[#AD606E] hover:animate-pulse transition-colors cursor-default">in class</s>{" "}
+                building side projects on Twitter and running the{" "}
+                <Link href="https://www.instagram.com/seattlejunkjournalclub/">Seattle Junk Journal Club</Link>.
+                I&apos;m also getting back into writing on <Link href="https://isaishangry.substack.com/">Substack</Link>.
+              </p>
+              <p>
+                I&apos;m campaigning for reproductive justice and forming a sexual assault task force with{" "}
+                <Link href="https://www.advocatesforyouth.org/">Advocates for Youth</Link> in Washington, D.C. and Seattle, WA.
+              </p>
+              <p>
+                In my spare time, I lead the student ambassador program at the{" "}
+                <Link href="https://aaylc.org">Asian American Youth Leadership Conference</Link> for 600+ students.
+              </p>
             </div>
           </div>
 
-          {/* Writing */}
-          <div id="writing" className="mt-2">
-            <p className="pt-4 text-sm font-medium text-neutral-400 mb-1">Writing</p>
-            <div>
-              {writingEntries.map((entry, i) => {
-                const showYear = entry.date !== lastWritingYear;
-                lastWritingYear = entry.date;
-                return (
-                  <a key={i} href={entry.url} className={`block py-3 grid grid-cols-[60px_1fr_auto] gap-3 items-baseline group ${i !== 0 ? "border-t border-neutral-100" : ""}`}>
-                    <span className="text-sm text-neutral-300">{showYear ? entry.date : ""}</span>
-                    <span className="text-sm group-hover:text-neutral-500 transition-colors">{entry.title}</span>
-                    <span className="text-xs text-neutral-300">{entry.description}</span>
-                  </a>
-                );
-              })}
-            </div>
-            <a href="https://isabellereksopuro.substack.com/" style={linkStyle} className="inline-block text-xs text-neutral-400 hover:text-neutral-600 transition-colors mt-2">
-              Read more on Substack &rarr;
-            </a>
-          </div>
-
-          {/* Projects */}
-          <div id="projects" className="mt-2">
-            <p className="pt-4 text-sm font-medium text-neutral-400 mb-1">Projects</p>
-            <div>
-              {projects.map((project, i) => (
-                <div key={project.name} className={`py-3 ${i !== 0 ? "border-t border-neutral-100" : ""}`}>
-                  {project.url ? (
-                    <a href={project.url} style={linkStyle} className="text-sm hover:text-neutral-500 transition-colors">{project.name}</a>
-                  ) : (
-                    <p className="text-sm">{project.name}</p>
-                  )}
-                  <p className="text-xs text-neutral-400 mt-0.5">{project.description}</p>
-                </div>
+          {/* Tab bar */}
+          <div className="mt-8">
+            <div className="relative flex gap-1 p-1 bg-neutral-100 rounded-full w-fit">
+              {(["Work", "Writing", "Projects", "Misc"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-1.5 rounded-full text-xs transition-all duration-200 cursor-pointer ${
+                    activeTab === tab
+                      ? "bg-white text-neutral-800 font-medium shadow-sm"
+                      : "text-neutral-500 hover:text-neutral-700"
+                  }`}
+                >
+                  {tab}
+                </button>
               ))}
             </div>
-          </div>
 
-          {/* Misc */}
-          <div className="mt-2">
-            <p className="pt-4 text-sm font-medium text-neutral-400 mb-1">Misc</p>
-            <p>I like binging K-dramas (ask me what I&apos;m watching!), downing gallons of matcha, baking blueberry scones, and reading at 1,200+ WPM (unofficially benchmarked).</p>
+            <div className="mt-3">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
+                  transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+                >
+                  {activeTab === "Work" && (
+                    <div>
+                      {workEntries.map((entry, i) => {
+                        const showYear = entry.year !== lastWorkYear;
+                        lastWorkYear = entry.year;
+                        return (
+                          <button key={i}
+                            onClick={() => setOpenWork((prev) => ({ ...prev, [i]: !prev[i] }))}
+                            className={`w-full text-left cursor-pointer py-3 grid grid-cols-[60px_1fr_auto] gap-3 items-start ${showYear && i !== 0 ? "border-t border-neutral-100" : ""}`}>
+                            <span className="text-sm text-neutral-300">{showYear ? entry.year : ""}</span>
+                            <div>
+                              <div className="flex items-center gap-1">
+                                <a href={entry.orgUrl} onClick={(e) => e.stopPropagation()} style={linkStyle} className="text-sm hover:text-neutral-500 transition-colors">{entry.org}</a>
+                                <motion.span className="text-neutral-400 shrink-0 inline-flex" animate={{ rotate: openWork[i] ? 90 : 0 }} transition={{ duration: 0.15 }}>
+                                  <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
+                                </motion.span>
+                              </div>
+                              <p className="text-xs text-neutral-400 mt-0.5">{entry.title}</p>
+                              <AnimatePresence>
+                                {openWork[i] && (
+                                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }} className="overflow-hidden">
+                                    <p className="text-sm text-neutral-500 mt-2 leading-relaxed">{entry.description}</p>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                            <span />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {activeTab === "Writing" && (
+                    <div>
+                      {writingEntries.map((entry, i) => {
+                        const showYear = entry.date !== lastWritingYear;
+                        lastWritingYear = entry.date;
+                        return (
+                          <a key={i} href={entry.url} className={`block py-3 grid grid-cols-[60px_1fr_auto] gap-3 items-baseline group ${i !== 0 ? "border-t border-neutral-100" : ""}`}>
+                            <span className="text-sm text-neutral-300">{showYear ? entry.date : ""}</span>
+                            <span className="text-sm group-hover:text-neutral-500 transition-colors">{entry.title}</span>
+                            <span className="text-xs text-neutral-300">{entry.description}</span>
+                          </a>
+                        );
+                      })}
+                      <a href="https://isaishangry.substack.com/" style={linkStyle} className="inline-block text-xs text-neutral-400 hover:text-neutral-600 transition-colors mt-2">
+                        Read more on Substack &rarr;
+                      </a>
+                    </div>
+                  )}
+
+                  {activeTab === "Projects" && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {projects.map((project) => (
+                        <a
+                          key={project.name}
+                          href={project.url || "#"}
+                          className="block bg-neutral-50 rounded-xl p-4 hover:bg-neutral-100 transition-colors group"
+                        >
+                          <p className="text-sm font-medium group-hover:text-neutral-500 transition-colors">{project.name}</p>
+                          <p className="text-xs text-neutral-400 mt-1 leading-relaxed">{project.description}</p>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {activeTab === "Misc" && (
+                    <p>I like binging K-dramas (ask me what I&apos;m watching!), downing gallons of matcha, baking blueberry scones, and reading at 1,200+ WPM (unofficially benchmarked).</p>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Footer */}
-          <p className="pt-10 text-neutral-300 text-xs">Made with stardust ★ by Isabelle</p>
+          <p className="mt-16 text-neutral-300 text-xs">Made with stardust ★ by Isabelle</p>
         </div>
       </main>
     </>
