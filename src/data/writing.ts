@@ -7,21 +7,15 @@ export interface WritingEntry {
 
 export const writingEntries: WritingEntry[] = [
   {
-    title: "Placeholder Post 1",
-    description: "A short description of this piece.",
-    url: "https://isabellereksopuro.substack.com/",
-    date: "2025",
+    title: "What 21 means to me",
+    description: "Mar 2026",
+    url: "https://isaishangry.substack.com/p/what-21-means-to-me",
+    date: "2026",
   },
   {
-    title: "Placeholder Post 2",
-    description: "A short description of this piece.",
-    url: "https://isabellereksopuro.substack.com/",
+    title: "SF needs to stop covering up for men",
+    description: "Oct 2025",
+    url: "https://isaishangry.substack.com/p/sf-needs-to-stop-covering-up-for",
     date: "2025",
-  },
-  {
-    title: "Placeholder Post 3",
-    description: "A short description of this piece.",
-    url: "https://isabellereksopuro.substack.com/",
-    date: "2024",
   },
 ];
