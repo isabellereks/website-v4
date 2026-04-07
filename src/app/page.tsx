@@ -262,9 +262,9 @@ export default function Home() {
     } catch { /* non-critical */ }
 
     function buildCache() {
-      const els = container.querySelectorAll('.w-word');
       const cache: typeof wordCacheRef.current = [];
-      els.forEach((el) => {
+      // Add word spans
+      container.querySelectorAll('.w-word').forEach((el) => {
         const h = el as HTMLElement;
         h.style.transform = ''; h.style.color = '';
         const computed = window.getComputedStyle(h).color;
@@ -272,6 +272,17 @@ export default function Home() {
         const isDefaultColor = Math.abs(rgb[0] - rgb[1]) < 15 && Math.abs(rgb[1] - rgb[2]) < 15 && rgb[0] < 80;
         const r = h.getBoundingClientRect();
         cache.push({ el: h, x: r.left + r.width / 2, y: r.top + r.height / 2, active: false, skipColor: !isDefaultColor });
+      });
+      // Add links as whole units
+      container.querySelectorAll('a').forEach((el) => {
+        const h = el as HTMLElement;
+        if (!h.style.transition.includes('transform')) {
+          h.style.transition = 'transform 0.3s ease-out';
+          h.style.display = 'inline-block';
+        }
+        h.style.transform = '';
+        const r = h.getBoundingClientRect();
+        cache.push({ el: h, x: r.left + r.width / 2, y: r.top + r.height / 2, active: false, skipColor: true });
       });
       wordCacheRef.current = cache;
       cacheReady.current = true;
@@ -283,9 +294,9 @@ export default function Home() {
     window.addEventListener('scroll', scheduleRebuild, { passive: true });
     window.addEventListener('resize', scheduleRebuild);
 
-    const RIPPLE_LIFETIME = 800;
-    const RIPPLE_SPEED = 150;
-    const SPAWN_INTERVAL = 20;
+    const RIPPLE_LIFETIME = 1000;
+    const RIPPLE_SPEED = 160;
+    const SPAWN_INTERVAL = 16;
 
     function animate() {
       if (!cacheReady.current) { rafId = requestAnimationFrame(animate); return; }
@@ -321,17 +332,17 @@ export default function Home() {
           const rip = ripples[j];
           const rdx = w.x - rip.x, rdy = w.y - rip.y;
           const rDist = Math.sqrt(rdx * rdx + rdy * rdy);
-          if (rDist > PUSH_RADIUS * 2) continue;
+          if (rDist > PUSH_RADIUS * 3) continue;
           const age = (now - rip.born) / 1000;
           const ringRadius = age * RIPPLE_SPEED;
           const ringDist = Math.abs(rDist - ringRadius);
-          if (ringDist > 30) continue;
+          if (ringDist > 40) continue;
           const decay = Math.max(0, 1 - (now - rip.born) / RIPPLE_LIFETIME);
-          const wave = Math.cos(ringDist / 30 * Math.PI * 0.5) * decay;
+          const wave = Math.cos(ringDist / 40 * Math.PI * 0.5) * decay;
           const angle = rDist > 0 ? Math.atan2(rdy, rdx) : 0;
-          totalTx += Math.cos(angle) * wave * 4;
-          totalTy += Math.sin(angle) * wave * 2;
-          maxBlend = Math.max(maxBlend, wave * 0.5);
+          totalTx += Math.cos(angle) * wave * 6;
+          totalTy += Math.sin(angle) * wave * 3;
+          maxBlend = Math.max(maxBlend, wave * 0.6);
         }
 
         if (Math.abs(totalTx) > 0.1 || Math.abs(totalTy) > 0.1) {
