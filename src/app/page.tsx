@@ -573,7 +573,7 @@ export default function Home() {
                   )}
 
                   {activeTab === "Misc" && (
-                    <p className="text-sm">I like binging K-dramas (ask me what I&apos;m watching!), downing gallons of matcha, baking blueberry scones, and reading at 1,200+ WPM (unofficially benchmarked).</p>
+                    <p className="text-xs md:text-sm leading-relaxed">I like binging K-dramas (ask me what I&apos;m watching!), downing gallons of matcha, baking blueberry scones, and reading at 1,200+ WPM (unofficially benchmarked).</p>
                   )}
                 </motion.div>
               </AnimatePresence>
