@@ -13,6 +13,7 @@ const linkStyle: React.CSSProperties = {
   textDecoration: "underline",
   textUnderlineOffset: "3px",
   textDecorationColor: "#d4d4d4",
+  display: "inline-block",
 };
 
 function Link({ href, children, className = "" }: { href: string; children: React.ReactNode; className?: string }) {
