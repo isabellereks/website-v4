@@ -7,7 +7,59 @@ import { ArrowRight01Icon, Mail01Icon, Linkedin01Icon, Bookmark01Icon, Github01I
 import { prepareWithSegments, layoutNextLine } from "@chenglou/pretext";
 import { workEntries } from "@/data/work";
 import { writingEntries } from "@/data/writing";
-import { projects } from "@/data/projects";
+import { projects, type Project } from "@/data/projects";
+
+function ProjectCard({ project, embedReady }: { project: Project; embedReady: boolean }) {
+  const ref = useRef<HTMLAnchorElement>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    if (!ref.current) return;
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) { setInView(true); obs.disconnect(); } }),
+      { rootMargin: "200px" }
+    );
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, []);
+  return (
+    <a
+      ref={ref}
+      href={project.url || "#"}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="relative block bg-neutral-50 rounded-xl overflow-hidden hover:bg-neutral-100 transition-all duration-300 group min-h-[220px] hover:-translate-y-1 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.2),0_8px_16px_-8px_rgba(0,0,0,0.1)]"
+    >
+      {project.embed && project.url ? (
+        <>
+          <div
+            className="absolute inset-0 overflow-hidden rounded-xl bg-white"
+            style={{ transform: "scale(0.35)", transformOrigin: "top left", width: "285%", height: "285%" }}
+          >
+            {embedReady && inView && <iframe
+              src={project.embedUrl || project.url}
+              className="w-full h-full border-0 pointer-events-none"
+              loading="lazy"
+              tabIndex={-1}
+              scrolling="no"
+              sandbox="allow-scripts allow-same-origin"
+              title={`${project.name} preview`}
+              aria-hidden="true"
+            />}
+          </div>
+          <div className="absolute inset-x-0 bottom-0 bg-white p-4 border-t border-neutral-100">
+            <p className="text-sm font-medium group-hover:text-neutral-500 transition-colors">{project.name}</p>
+            <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">{project.description}</p>
+          </div>
+        </>
+      ) : (
+        <div className="p-4">
+          <p className="text-sm font-medium group-hover:text-neutral-500 transition-colors">{project.name}</p>
+          <p className="text-xs text-neutral-400 mt-1 leading-relaxed">{project.description}</p>
+        </div>
+      )}
+    </a>
+  );
+}
 
 const linkStyle: React.CSSProperties = {
   textDecoration: "underline",
@@ -26,6 +78,11 @@ function Link({ href, children, className = "" }: { href: string; children: Reac
 
 export default function Home() {
   const [showMisc, setShowMisc] = useState(false);
+  const [embedsReady, setEmbedsReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setEmbedsReady(true), 600);
+    return () => clearTimeout(t);
+  }, []);
   const [miffyPos, setMiffyPos] = useState({ x: 0, y: 0 });
   const [miffyActivated, setMiffyActivated] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -35,7 +92,7 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [isBouncing, setIsBouncing] = useState<'left' | 'right' | 'top' | 'bottom' | null>(null);
   const [openWork, setOpenWork] = useState<Record<number, boolean>>({});
-  const [activeTab, setActiveTab] = useState<"Work" | "Writing" | "Projects" | "Misc">("Work");
+  const [activeTab, setActiveTab] = useState<"Projects" | "Work" | "Writing" | "Misc">("Projects");
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const initialMiffyRef = useRef<HTMLDivElement>(null);
   const miffyPosRef = useRef(miffyPos);
@@ -274,9 +331,11 @@ export default function Home() {
         const r = h.getBoundingClientRect();
         cache.push({ el: h, x: r.left + r.width / 2, y: r.top + r.height / 2, active: false, skipColor: !isDefaultColor });
       });
-      // Add links as whole units
+      // Add links as whole units (only inline links — skip block/grid/flex anchors whose layout we'd break)
       container.querySelectorAll('a').forEach((el) => {
         const h = el as HTMLElement;
+        const currentDisplay = window.getComputedStyle(h).display;
+        if (currentDisplay !== 'inline' && currentDisplay !== 'inline-block') return;
         if (!h.style.transition.includes('transform')) {
           h.style.transition = 'transform 0.3s ease-out';
           h.style.display = 'inline-block';
@@ -473,7 +532,7 @@ export default function Home() {
           {/* Tab bar */}
           <div className="mt-6">
             <div className="relative flex gap-1 p-1 bg-neutral-100/80 backdrop-blur-sm rounded-full w-fit">
-              {(["Work", "Writing", "Projects", "Misc"] as const).map((tab) => (
+              {(["Projects", "Work", "Writing", "Misc"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -558,18 +617,27 @@ export default function Home() {
                   )}
 
                   {activeTab === "Projects" && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <motion.div
+                      className="grid grid-cols-2 gap-3"
+                      initial="hidden"
+                      animate="show"
+                      variants={{
+                        hidden: {},
+                        show: { transition: { staggerChildren: 0.12, delayChildren: 0.15 } },
+                      }}
+                    >
                       {projects.map((project) => (
-                        <a
+                        <motion.div
                           key={project.name}
-                          href={project.url || "#"}
-                          className="block bg-neutral-50 rounded-xl p-4 hover:bg-neutral-100 transition-colors group"
+                          variants={{
+                            hidden: { opacity: 0, y: 16 },
+                            show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+                          }}
                         >
-                          <p className="text-sm font-medium group-hover:text-neutral-500 transition-colors">{project.name}</p>
-                          <p className="text-xs text-neutral-400 mt-1 leading-relaxed">{project.description}</p>
-                        </a>
+                          <ProjectCard project={project} embedReady={embedsReady} />
+                        </motion.div>
                       ))}
-                    </div>
+                    </motion.div>
                   )}
 
                   {activeTab === "Misc" && (
